@@ -1,0 +1,14 @@
+rules:
+  - id: hardcoded-secret
+    pattern-regex: '(?i)(password|secret|token)\s*=\s*".+"'
+    message: Hardcoded secret detected
+    severity: ERROR
+    languages:
+      - python
+
+  - id: flask-debug
+    pattern: app.run(..., debug=True)
+    message: Flask debug mode should not be enabled
+    severity: WARNING
+    languages:
+      - python
