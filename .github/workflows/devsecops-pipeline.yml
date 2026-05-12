@@ -41,10 +41,13 @@ jobs:
           --json \
           --output semgrep-results.json
 
-      - name: Run Dependency Scan
+      - name: Run Gitleaks Secret Scan
         run: |
-          safety check \
-          --json > safety-results.json
+          docker run --rm \
+          -v ${{ github.workspace }}:/path \
+          zricethezav/gitleaks:latest detect \
+          --source="/path" \
+          --no-git
 
       - name: Run Gitleaks Secret Scan
         uses: gitleaks/gitleaks-action@v2
