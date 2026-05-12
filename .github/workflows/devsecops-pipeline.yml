@@ -44,8 +44,7 @@ jobs:
       - name: Run Dependency Scan
         run: |
           safety check \
-          --full-report \
-          --output json > safety-results.json
+          --json > safety-results.json
 
       - name: Run Gitleaks Secret Scan
         uses: gitleaks/gitleaks-action@v2
