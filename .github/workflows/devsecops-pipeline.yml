@@ -4,141 +4,42 @@ on:
   push:
     branches:
       - main
-
-  pull_request:
-
-permissions:
-  contents: read
-  security-events: write
-
-env:
-  IMAGE_NAME: secure-app
-  IMAGE_TAG: ${{ github.sha }}
+      - devsecops-bad
 
 jobs:
-
-  scan:
-    name: Security Scanning
+  security-and-test:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set Up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: '3.11'
 
-      - name: Install Security Tools
+      - name: Install Dependencies
         run: |
-          pip install semgrep safety
+          pip install -r requirements.txt
+          pip install pytest safety
 
-      - name: Run Semgrep SAST
+      - name: Dependency Vulnerability Scan
         run: |
-          semgrep --config .semgrep.yml \
-          --json \
-          --output semgrep-results.json
+          safety check -r requirements.txt
 
-      - name: Run Gitleaks Secret Scan
+      - name: Run Unit Tests
         run: |
-          docker run --rm \
-          -v ${{ github.workspace }}:/path \
-          zricethezav/gitleaks:latest detect \
-          --source="/path" \
-          --no-git
-
-      - name: Run Gitleaks Secret Scan
-        run: |
-          docker run --rm \
-          -v ${{ github.workspace }}:/path \
-          zricethezav/gitleaks:latest detect \
-          --source="/path" \
-          --no-git
+          pytest tests/
 
       - name: Build Docker Image
         run: |
-          docker build \
-          -t secure-app:${GITHUB_SHA} .
+          docker build -t secure-app:latest .
 
       - name: Run Trivy Container Scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.20.0
         with:
-          image-ref: secure-app:${{ github.sha }}
-          format: json
-          output: trivy-results.json
-          severity: CRITICAL
-          ignore-unfixed: true
-          exit-code: 0
-
-      - name: Generate SBOM
-        uses: anchore/sbom-action@v0
-        with:
-          image: secure-app:${{ github.sha }}
-          format: cyclonedx-json
-          output-file: sbom.cyclonedx.json
-
-      - name: Create Vulnerability Summary
-        run: |
-          cat <<EOF > vulnerability-summary.txt
-          DevSecOps Scan Summary
-          ======================
-
-          Commit SHA:
-          ${GITHUB_SHA}
-
-          Result:
-          PASSED
-
-          Container Image:
-          secure-app:${GITHUB_SHA}
-
-          SBOM generated successfully.
-          EOF
-
-      - name: Upload Security Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-artifacts
-          path: |
-            semgrep-results.json
-            safety-results.json
-            trivy-results.json
-            sbom.cyclonedx.json
-            vulnerability-summary.txt
-
-  build:
-    name: Trusted Build Promotion
-    runs-on: ubuntu-latest
-    needs: scan
-
-    steps:
-
-      - name: Create Trusted Metadata
-        run: |
-          mkdir trusted-build
-
-          cat <<EOF > trusted-build/image-metadata.txt
-          Trusted Build Metadata
-          ======================
-
-          Image:
-          secure-app:${GITHUB_SHA}
-
-          Status:
-          TRUSTED
-
-          Promotion Requirements:
-          - SAST Passed
-          - Dependency Scan Passed
-          - Secret Scan Passed
-          - Container Scan Passed
-          - SBOM Generated
-          EOF
-
-      - name: Upload Trusted Metadata
-        uses: actions/upload-artifact@v4
-        with:
-          name: trusted-build
-          path: trusted-build/image-metadata.txt
+          image-ref: 'secure-app:latest'
+          format: 'table'
+          exit-code: '1'
+          severity: 'HIGH,CRITICAL'
