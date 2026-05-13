@@ -31,14 +31,28 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Security Tools
+      - name: Install Dependencies
         run: |
-          pip install semgrep safety
+          pip install -r requirements.txt
+          pip install semgrep safety pytest
+
+      - name: Run Unit Tests
+        run: |
+          pytest tests/
+
       - name: Run Semgrep SAST
         run: |
-          semgrep --config .semgrep.yml \
+          semgrep \
+          --config .semgrep.yml \
           --json \
           --output semgrep-results.json
+
+      - name: Run Safety Dependency Scan
+        run: |
+          safety check \
+          -r requirements.txt \
+          --json > safety-results.json
+
       - name: Run Gitleaks Secret Scan
         run: |
           docker run --rm \
@@ -46,26 +60,21 @@ jobs:
           zricethezav/gitleaks:latest detect \
           --source="/path" \
           --no-git
-      - name: Run Gitleaks Secret Scan
-        run: |
-          docker run --rm \
-          -v ${{ github.workspace }}:/path \
-          zricethezav/gitleaks:latest detect \
-          --source="/path" \
-          --no-git
+
       - name: Build Docker Image
         run: |
           docker build \
           -t secure-app:${GITHUB_SHA} .
+
       - name: Run Trivy Container Scan
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: secure-app:${{ github.sha }}
           format: json
           output: trivy-results.json
-          severity: CRITICAL
+          severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: 0
+          exit-code: 1
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
@@ -79,14 +88,19 @@ jobs:
           cat <<EOF > vulnerability-summary.txt
           DevSecOps Scan Summary
           ======================
+
           Commit SHA:
           ${GITHUB_SHA}
+
           Result:
           PASSED
+
           Container Image:
           secure-app:${GITHUB_SHA}
+
           SBOM generated successfully.
           EOF
+
       - name: Upload Security Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -97,6 +111,7 @@ jobs:
             trivy-results.json
             sbom.cyclonedx.json
             vulnerability-summary.txt
+
   build:
     name: Trusted Build Promotion
     runs-on: ubuntu-latest
@@ -107,13 +122,17 @@ jobs:
       - name: Create Trusted Metadata
         run: |
           mkdir trusted-build
+
           cat <<EOF > trusted-build/image-metadata.txt
           Trusted Build Metadata
           ======================
+
           Image:
           secure-app:${GITHUB_SHA}
+
           Status:
           TRUSTED
+
           Promotion Requirements:
           - SAST Passed
           - Dependency Scan Passed
@@ -121,6 +140,7 @@ jobs:
           - Container Scan Passed
           - SBOM Generated
           EOF
+
       - name: Upload Trusted Metadata
         uses: actions/upload-artifact@v4
         with:
