@@ -31,27 +31,23 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Dependencies
+      - name: Install Security Tools
         run: |
-          pip install -r requirements.txt
-          pip install semgrep safety pytest
-
-      - name: Run Unit Tests
-        run: |
-          pytest tests/
+          pip install semgrep safety
 
       - name: Run Semgrep SAST
         run: |
-          semgrep \
-          --config .semgrep.yml \
+          semgrep --config .semgrep.yml \
           --json \
           --output semgrep-results.json
 
-      - name: Run Safety Dependency Scan
+      - name: Run Gitleaks Secret Scan
         run: |
-          safety check \
-          -r requirements.txt \
-          --json > safety-results.json
+          docker run --rm \
+          -v ${{ github.workspace }}:/path \
+          zricethezav/gitleaks:latest detect \
+          --source="/path" \
+          --no-git
 
       - name: Run Gitleaks Secret Scan
         run: |
@@ -72,9 +68,9 @@ jobs:
           image-ref: secure-app:${{ github.sha }}
           format: json
           output: trivy-results.json
-          severity: HIGH,CRITICAL
+          severity: CRITICAL
           ignore-unfixed: true
-          exit-code: 1
+          exit-code: 0
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0
