@@ -35,8 +35,8 @@ def create_app() -> Flask:
         raw_name = request.args.get("name", "world")
         name = raw_name.strip()
 
-        if not NAME_PATTERN.fullmatch(name):
-            return jsonify(error="name must start with a letter and contain only letters, numbers, spaces, hyphens, or underscores"), 400
+    if len(name) < 2:
+    return jsonify(error="name too short"), 400
 
         return jsonify(message=f"Hello, {name}!")
 
